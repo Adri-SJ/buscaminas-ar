@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#071019">
   <title>Buscaminas AR</title>
-  <link rel="stylesheet" href="./css/styles.css?v=1">
+  <link rel="stylesheet" href="./css/styles.css?v=2">
 </head>
 <body>
   <main id="app">
@@ -31,17 +31,14 @@
       <div id="scene"></div>
 
       <header class="hud">
-        <div>
-          <small>MINAS</small>
-          <strong id="mines-left">4</strong>
+        <div class="brand">
+          <span class="mine-icon">✹</span>
+          <div><small>BUSCAMINAS</small><b>AR</b></div>
         </div>
-        <div>
-          <small>TIEMPO</small>
-          <strong id="timer">00:00</strong>
-        </div>
-        <div>
-          <small>VIDAS</small>
-          <strong id="lives">♥♥♥</strong>
+        <div class="stats">
+          <span><small>MINAS</small><strong id="mines-left">4</strong></span>
+          <span><small>TIEMPO</small><strong id="timer">00:00</strong></span>
+          <span><small>VIDAS</small><strong id="lives">♥♥♥</strong></span>
         </div>
       </header>
 
@@ -51,9 +48,11 @@
       </div>
 
       <div class="controls">
-        <button id="reveal-mode" class="mode active">Descubrir</button>
-        <button id="flag-mode" class="mode">🚩 Bandera</button>
-        <button id="reset-btn" class="ghost">Reiniciar</button>
+        <div class="mode-switch">
+          <button id="reveal-mode" class="mode active">◇ Descubrir</button>
+          <button id="flag-mode" class="mode">⚑ Bandera</button>
+        </div>
+        <button id="reset-btn" class="ghost">↻</button>
       </div>
 
       <div id="message" class="message hidden">
@@ -69,6 +68,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/app.js?v=1"></script>
+  <script type="module" src="./js/app.js?v=2"></script>
 </body>
 </html>
