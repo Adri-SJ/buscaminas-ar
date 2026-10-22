@@ -2,9 +2,15 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
 const $ = (id) => document.getElementById(id);
 
-const SIZE = 5;
-const MINE_COUNT = 4;
-const START_LIVES = 3;
+const LEVELS = [
+  { size: 5, mines: 4, label: "Nivel 1" },
+  { size: 7, mines: 8, label: "Nivel 2" },
+  { size: 9, mines: 14, label: "Nivel 3" }
+];
+
+let currentLevel = 0;
+let SIZE = LEVELS[currentLevel].size;
+let MINE_COUNT = LEVELS[currentLevel].mines;
 
 let renderer, scene, camera, reticle;
 let hitTestSource = null;
@@ -14,12 +20,13 @@ let boardPlaced = false;
 let gameStarted = false;
 let mode = "reveal";
 let cells = [];
-let lives = START_LIVES;
 let startTime = 0;
 let timerId = null;
 let raycaster = new THREE.Raycaster();
 let pointer = new THREE.Vector2();
 let fallbackMode = false;
+let suggestedIndex = 0;
+let firstMovePending = true;
 
 const colors = {
   hidden: 0x183445,
@@ -31,6 +38,9 @@ const colors = {
 };
 
 function buildGame() {
+  SIZE = LEVELS[currentLevel].size;
+  MINE_COUNT = LEVELS[currentLevel].mines;
+
   cells = Array.from({ length: SIZE * SIZE }, (_, i) => ({
     index: i,
     mine: false,
@@ -41,7 +51,27 @@ function buildGame() {
     label: null
   }));
 
-  const pool = [...Array(SIZE * SIZE).keys()];
+  suggestedIndex = Math.floor((SIZE * SIZE) / 2);
+  firstMovePending = true;
+
+  // La casilla sugerida y sus vecinas inmediatas quedan libres de minas
+  // para que el primer movimiento sea útil y no dependa de suerte.
+  const sr = Math.floor(suggestedIndex / SIZE);
+  const sc = suggestedIndex % SIZE;
+  const forbidden = new Set();
+
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const rr = sr + dr;
+      const cc = sc + dc;
+      if (rr >= 0 && rr < SIZE && cc >= 0 && cc < SIZE) {
+        forbidden.add(rr * SIZE + cc);
+      }
+    }
+  }
+
+  const pool = [...Array(SIZE * SIZE).keys()].filter(i => !forbidden.has(i));
+
   for (let i = 0; i < MINE_COUNT; i++) {
     const pick = Math.floor(Math.random() * pool.length);
     cells[pool.splice(pick, 1)[0]].mine = true;
@@ -51,17 +81,21 @@ function buildGame() {
     const r = Math.floor(cell.index / SIZE);
     const c = cell.index % SIZE;
     let count = 0;
-    for (let dr=-1; dr<=1; dr++) {
-      for (let dc=-1; dc<=1; dc++) {
+
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
         if (!dr && !dc) continue;
-        const rr=r+dr, cc=c+dc;
-        if (rr>=0 && rr<SIZE && cc>=0 && cc<SIZE && cells[rr*SIZE+cc].mine) count++;
+        const rr = r + dr;
+        const cc = c + dc;
+        if (rr >= 0 && rr < SIZE && cc >= 0 && cc < SIZE && cells[rr * SIZE + cc].mine) {
+          count++;
+        }
       }
     }
+
     cell.adjacent = count;
   }
 }
-
 function makeNumberTexture(text, color = "#071019") {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
@@ -83,14 +117,15 @@ function createBoard() {
   boardGroup.visible = false;
 
   const base = new THREE.Mesh(
-    new THREE.BoxGeometry(0.72,0.025,0.72),
+    new THREE.BoxGeometry(SIZE >= 9 ? 0.90 : SIZE >= 7 ? 0.84 : 0.72,0.025,SIZE >= 9 ? 0.90 : SIZE >= 7 ? 0.84 : 0.72),
     new THREE.MeshStandardMaterial({ color: colors.grid, metalness:.35, roughness:.7 })
   );
   base.position.y = -0.018;
   boardGroup.add(base);
 
-  const gap = 0.012;
-  const cellSize = (0.66 - gap*(SIZE-1))/SIZE;
+  const gap = SIZE >= 9 ? 0.006 : SIZE >= 7 ? 0.008 : 0.012;
+  const boardSpan = SIZE >= 9 ? 0.82 : SIZE >= 7 ? 0.76 : 0.66;
+  const cellSize = (boardSpan - gap*(SIZE-1))/SIZE;
   const offset = (cellSize*(SIZE-1)+gap*(SIZE-1))/2;
 
   cells.forEach((cell) => {
@@ -107,6 +142,13 @@ function createBoard() {
     );
     mesh.position.set(c*(cellSize+gap)-offset,0,r*(cellSize+gap)-offset);
     mesh.userData.cellIndex = cell.index;
+
+    if (cell.index === suggestedIndex) {
+      mesh.material.color.setHex(0x24d7f2);
+      mesh.material.emissive = new THREE.Color(0x0b7890);
+      mesh.material.emissiveIntensity = 0.55;
+    }
+
     cell.mesh = mesh;
     boardGroup.add(mesh);
   });
@@ -120,19 +162,23 @@ function revealCell(index) {
 
   if (!gameStarted) startGameTimer();
 
+  if (firstMovePending) {
+    firstMovePending = false;
+    cells.forEach((c) => {
+      if (!c.revealed && !c.flagged && c.mesh?.material?.emissive) {
+        c.mesh.material.emissiveIntensity = 0;
+      }
+    });
+  }
+
   cell.revealed = true;
 
   if (cell.mine) {
     cell.mesh.material.color.setHex(colors.mine);
     addCellLabel(cell, "✹", "#ffffff");
-    lives--;
-    updateHud();
-    navigator.vibrate?.([80,40,120]);
-
-    if (lives <= 0) {
-      endGame(false);
-      revealAllMines();
-    }
+    navigator.vibrate?.([120,50,180]);
+    revealAllMines();
+    endGame(false);
     return;
   }
 
@@ -147,7 +193,6 @@ function revealCell(index) {
 
   checkWin();
 }
-
 function revealNeighbors(index) {
   const r = Math.floor(index / SIZE);
   const c = index % SIZE;
@@ -232,28 +277,39 @@ function updateTimer() {
 }
 
 function updateHud() {
-  $("lives").textContent = "♥".repeat(Math.max(0,lives)) + "♡".repeat(Math.max(0,START_LIVES-lives));
   $("mines-left").textContent = Math.max(0, MINE_COUNT - cells.filter(c=>c.flagged).length);
+  $("level-label").textContent = LEVELS[currentLevel].label;
 }
 
 function endGame(win) {
   clearInterval(timerId);
-  const elapsed = startTime ? Math.floor((Date.now()-startTime)/1000) : 0;
-  $("message-kicker").textContent = win ? "CAMPO DESPEJADO" : "FIN DE PARTIDA";
-  $("message-title").textContent = win ? "¡Ganaste!" : "💥 Boom";
+  const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+
+  if (win && currentLevel < LEVELS.length - 1) {
+    $("message-kicker").textContent = "NIVEL SUPERADO";
+    $("message-title").textContent = "¡Buen trabajo!";
+    $("message-text").textContent =
+      `Completaste ${LEVELS[currentLevel].label} en ${elapsed} segundos. Sigue con ${LEVELS[currentLevel + 1].label}: ${LEVELS[currentLevel + 1].size}×${LEVELS[currentLevel + 1].size}.`;
+    $("play-again").textContent = "Siguiente nivel";
+    $("message").classList.remove("hidden");
+    return;
+  }
+
+  $("message-kicker").textContent = win ? "CAMPO DESPEJADO" : "MINA ACTIVADA";
+  $("message-title").textContent = win ? "¡Completaste todos los niveles!" : "💥 Boom";
   $("message-text").textContent = win
-    ? `Completaste el tablero en ${elapsed} segundos con ${lives} vida(s).`
-    : "Te quedaste sin vidas. Las minas restantes han sido reveladas.";
+    ? `Terminaste ${LEVELS.length} niveles. Último tiempo: ${elapsed} segundos.`
+    : "Pisaste una mina. En Buscaminas una sola explosión termina la partida.";
+  $("play-again").textContent = win ? "Jugar de nuevo" : "Reintentar nivel";
   $("message").classList.remove("hidden");
 }
-
 function resetGame() {
   clearInterval(timerId);
   gameStarted = false;
   startTime = 0;
-  lives = START_LIVES;
   $("timer").textContent = "00:00";
   $("message").classList.add("hidden");
+  $("play-again").textContent = "Jugar otra vez";
   buildGame();
   createBoard();
   updateHud();
@@ -263,7 +319,8 @@ function resetGame() {
     boardGroup.position.set(0,-.45,-1.25);
     boardGroup.rotation.x = -Math.PI/2.65;
     boardPlaced = true;
-    $("placement-help").classList.add("hidden");
+    $("placement-help").innerHTML = "<strong>Empieza por la casilla azul</strong><span>Está garantizada como segura.</span>";
+    setTimeout(() => $("placement-help").classList.add("hidden"), 2600);
   } else {
     boardPlaced = false;
     $("placement-help").classList.remove("hidden");
@@ -461,7 +518,17 @@ $("start-btn").addEventListener("click",init);
 $("reveal-mode").addEventListener("click",()=>setMode("reveal"));
 $("flag-mode").addEventListener("click",()=>setMode("flag"));
 $("reset-btn").addEventListener("click",resetGame);
-$("play-again").addEventListener("click",resetGame);
+$("play-again").addEventListener("click", () => {
+  const wonCurrent = cells.filter(c => !c.mine).every(c => c.revealed);
+
+  if (wonCurrent && currentLevel < LEVELS.length - 1) {
+    currentLevel++;
+  } else if (wonCurrent && currentLevel === LEVELS.length - 1) {
+    currentLevel = 0;
+  }
+
+  resetGame();
+});
 $("fallback-btn").addEventListener("click",()=>startFallback());
 
 addEventListener("resize",()=>{
