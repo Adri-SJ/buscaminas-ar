@@ -14,12 +14,12 @@
       <div class="intro-card">
         <div class="eyebrow">REALIDAD AUMENTADA · JUEGO ESPACIAL</div>
         <h1>BUSCAMINAS <span>AR</span></h1>
-        <p>Coloca el tablero sobre una superficie, descubre las casillas y encuentra las 4 minas sin explotarlas.</p>
+        <p>Coloca el tablero sobre una superficie y supera 3 niveles. Una sola mina termina la partida.</p>
 
         <div class="rules">
           <div><b>5×5</b><span>tablero</span></div>
           <div><b>4</b><span>minas</span></div>
-          <div><b>3</b><span>vidas</span></div>
+          <div><b>1</b><span>error = fin</span></div>
         </div>
 
         <button id="start-btn" class="primary">Iniciar experiencia</button>
@@ -38,7 +38,7 @@
         <div class="stats">
           <span><small>MINAS</small><strong id="mines-left">4</strong></span>
           <span><small>TIEMPO</small><strong id="timer">00:00</strong></span>
-          <span><small>VIDAS</small><strong id="lives">♥♥♥</strong></span>
+          <span><small>NIVEL</small><strong id="level-label">Nivel 1</strong></span>
         </div>
       </header>
 
@@ -68,6 +68,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/app.js?v=2"></script>
+  <script type="module" src="./js/app.js?v=3"></script>
 </body>
 </html>
