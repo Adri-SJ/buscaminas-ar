@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#071019">
+  <title>Buscaminas AR</title>
+  <link rel="stylesheet" href="./css/styles.css?v=1">
+</head>
+<body>
+  <main id="app">
+    <section id="intro" class="intro">
+      <div class="grid-bg"></div>
+      <div class="intro-card">
+        <div class="eyebrow">REALIDAD AUMENTADA · JUEGO ESPACIAL</div>
+        <h1>BUSCAMINAS <span>AR</span></h1>
+        <p>Coloca el tablero sobre una superficie, descubre las casillas y encuentra las 4 minas sin explotarlas.</p>
+
+        <div class="rules">
+          <div><b>5×5</b><span>tablero</span></div>
+          <div><b>4</b><span>minas</span></div>
+          <div><b>3</b><span>vidas</span></div>
+        </div>
+
+        <button id="start-btn" class="primary">Iniciar experiencia</button>
+        <p class="hint">Recomendado: Chrome en Android con buena iluminación.</p>
+      </div>
+    </section>
+
+    <section id="game" class="game hidden">
+      <div id="scene"></div>
+
+      <header class="hud">
+        <div>
+          <small>MINAS</small>
+          <strong id="mines-left">4</strong>
+        </div>
+        <div>
+          <small>TIEMPO</small>
+          <strong id="timer">00:00</strong>
+        </div>
+        <div>
+          <small>VIDAS</small>
+          <strong id="lives">♥♥♥</strong>
+        </div>
+      </header>
+
+      <div id="placement-help" class="placement-help">
+        <strong>Busca una superficie</strong>
+        <span>Apunta al piso o una mesa y toca para colocar el tablero</span>
+      </div>
+
+      <div class="controls">
+        <button id="reveal-mode" class="mode active">Descubrir</button>
+        <button id="flag-mode" class="mode">🚩 Bandera</button>
+        <button id="reset-btn" class="ghost">Reiniciar</button>
+      </div>
+
+      <div id="message" class="message hidden">
+        <div class="message-card">
+          <small id="message-kicker">RESULTADO</small>
+          <h2 id="message-title">¡Ganaste!</h2>
+          <p id="message-text"></p>
+          <button id="play-again" class="primary">Jugar otra vez</button>
+        </div>
+      </div>
+
+      <button id="fallback-btn" class="fallback hidden">Modo de prueba</button>
+    </section>
+  </main>
+
+  <script type="module" src="./js/app.js?v=1"></script>
+</body>
+</html>
