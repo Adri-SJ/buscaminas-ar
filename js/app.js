@@ -28,6 +28,54 @@ let fallbackMode = false;
 let suggestedIndex = 0;
 let firstMovePending = true;
 
+const musicAudio = new Audio("./assets/audio/musica.mp3");
+musicAudio.loop = true;
+musicAudio.preload = "auto";
+musicAudio.volume = 0.18;
+
+const clickAudio = new Audio("./assets/audio/click.mp3");
+clickAudio.preload = "auto";
+clickAudio.volume = 0.72;
+
+const flagAudio = new Audio("./assets/audio/bandera.mp3");
+flagAudio.preload = "auto";
+flagAudio.volume = 0.78;
+
+const mineAudio = new Audio("./assets/audio/mina.mp3");
+mineAudio.preload = "auto";
+mineAudio.volume = 0.92;
+
+const levelAudio = new Audio("./assets/audio/nivel.mp3");
+levelAudio.preload = "auto";
+levelAudio.volume = 0.82;
+
+const victoryAudio = new Audio("./assets/audio/victoria.mp3");
+victoryAudio.preload = "auto";
+victoryAudio.volume = 0.86;
+
+function playAudio(audio) {
+  try {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  } catch {}
+}
+
+function startMusic() {
+  try {
+    musicAudio.currentTime = 0;
+    musicAudio.play().catch(() => {});
+  } catch {}
+}
+
+function duckMusic(volume = 0.07) {
+  musicAudio.volume = volume;
+}
+
+function restoreMusic() {
+  musicAudio.volume = 0.18;
+}
+
 const colors = {
   hidden: 0x183445,
   hidden2: 0x21495e,
@@ -176,12 +224,15 @@ function revealCell(index) {
   if (cell.mine) {
     cell.mesh.material.color.setHex(colors.mine);
     addCellLabel(cell, "✹", "#ffffff");
+    duckMusic();
+    playAudio(mineAudio);
     navigator.vibrate?.([120,50,180]);
     revealAllMines();
     endGame(false);
     return;
   }
 
+  playAudio(clickAudio);
   cell.mesh.material.color.setHex(colors.revealed);
 
   if (cell.adjacent > 0) {
@@ -239,6 +290,7 @@ function toggleFlag(index) {
   if (!gameStarted) startGameTimer();
 
   cell.flagged = !cell.flagged;
+  playAudio(flagAudio);
   cell.mesh.material.color.setHex(cell.flagged ? colors.flag : ((Math.floor(index/SIZE)+(index%SIZE))%2 ? colors.hidden : colors.hidden2));
 
   if (cell.flagged) {
@@ -286,6 +338,8 @@ function endGame(win) {
   const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
   if (win && currentLevel < LEVELS.length - 1) {
+    duckMusic(0.09);
+    playAudio(levelAudio);
     $("message-kicker").textContent = "NIVEL SUPERADO";
     $("message-title").textContent = "¡Buen trabajo!";
     $("message-text").textContent =
@@ -293,6 +347,11 @@ function endGame(win) {
     $("play-again").textContent = "Siguiente nivel";
     $("message").classList.remove("hidden");
     return;
+  }
+
+  if (win) {
+    duckMusic(0.08);
+    playAudio(victoryAudio);
   }
 
   $("message-kicker").textContent = win ? "CAMPO DESPEJADO" : "MINA ACTIVADA";
@@ -305,6 +364,10 @@ function endGame(win) {
 }
 function resetGame() {
   clearInterval(timerId);
+  restoreMusic();
+  mineAudio.pause();
+  levelAudio.pause();
+  victoryAudio.pause();
   gameStarted = false;
   startTime = 0;
   $("timer").textContent = "00:00";
@@ -361,6 +424,9 @@ function setMode(next) {
 }
 
 async function init() {
+  [musicAudio, clickAudio, flagAudio, mineAudio, levelAudio, victoryAudio].forEach(a => a.load());
+  startMusic();
+
   if (!("xr" in navigator)) {
     startFallback("WebXR no está disponible en este navegador.");
     return;
@@ -448,6 +514,7 @@ async function init() {
 
 function startFallback(reason = "") {
   fallbackMode = true;
+  startMusic();
 
   $("intro").classList.add("hidden");
   $("game").classList.remove("hidden");
