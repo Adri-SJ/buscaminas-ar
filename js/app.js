@@ -1,5 +1,4 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -305,21 +304,43 @@ function setMode(next) {
 }
 
 async function init() {
+  if (!("xr" in navigator)) {
+    startFallback("WebXR no está disponible en este navegador.");
+    return;
+  }
+
+  let supported = false;
+  try {
+    supported = await navigator.xr.isSessionSupported("immersive-ar");
+  } catch {}
+
+  if (!supported) {
+    startFallback("Este navegador no soporta AR inmersiva.");
+    return;
+  }
+
   $("intro").classList.add("hidden");
   $("game").classList.remove("hidden");
+  $("placement-help").classList.remove("hidden");
+  $("fallback-btn").classList.add("hidden");
 
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,20);
+  camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 20);
 
-  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(innerWidth,innerHeight);
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: false
+  });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
   renderer.xr.enabled = true;
+  renderer.xr.setReferenceSpaceType("local");
   $("scene").appendChild(renderer.domElement);
 
-  scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.7));
-  const light = new THREE.DirectionalLight(0xffffff,1.4);
-  light.position.set(1,2,1);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.7));
+  const light = new THREE.DirectionalLight(0xffffff, 1.4);
+  light.position.set(1, 2, 1);
   scene.add(light);
 
   buildGame();
@@ -327,44 +348,89 @@ async function init() {
   updateHud();
 
   reticle = new THREE.Mesh(
-    new THREE.RingGeometry(.08,.105,32).rotateX(-Math.PI/2),
-    new THREE.MeshBasicMaterial({ color:0x38ddff })
+    new THREE.RingGeometry(0.075, 0.105, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({
+      color: 0x57e7ff,
+      transparent: true,
+      opacity: 0.95
+    })
   );
   reticle.matrixAutoUpdate = false;
   reticle.visible = false;
   scene.add(reticle);
 
   const controller = renderer.xr.getController(0);
-  controller.addEventListener("select",onSelect);
+  controller.addEventListener("select", onSelect);
   scene.add(controller);
 
-  renderer.domElement.addEventListener("pointerup",onScreenTap);
+  // En AR el toque sirve tanto para colocar como para jugar.
+  renderer.domElement.addEventListener("pointerup", onScreenTap);
 
-  if (!("xr" in navigator)) {
-    $("fallback-btn").classList.remove("hidden");
-    $("placement-help").innerHTML = "<strong>WebXR no disponible</strong><span>Usa el modo de prueba para jugar.</span>";
-  } else {
-    try {
-      const supported = await navigator.xr.isSessionSupported("immersive-ar");
-      if (!supported) throw new Error("AR no soportado");
+  try {
+    const session = await navigator.xr.requestSession("immersive-ar", {
+      requiredFeatures: ["hit-test"],
+      optionalFeatures: ["dom-overlay"],
+      domOverlay: { root: document.body }
+    });
 
-      const btn = ARButton.createButton(renderer,{
-        requiredFeatures:["hit-test"],
-        optionalFeatures:["dom-overlay"],
-        domOverlay:{root:document.body}
-      });
-      btn.style.display="none";
-      document.body.appendChild(btn);
-      btn.click();
-    } catch(e) {
-      $("fallback-btn").classList.remove("hidden");
-      $("placement-help").innerHTML = "<strong>AR no disponible</strong><span>Puedes usar el modo de prueba.</span>";
-    }
+    session.addEventListener("end", () => {
+      hitTestSourceRequested = false;
+      hitTestSource = null;
+      boardPlaced = false;
+    });
+
+    await renderer.xr.setSession(session);
+    renderer.setAnimationLoop(render);
+  } catch (error) {
+    console.error("No se pudo iniciar AR:", error);
+    $("game").classList.add("hidden");
+    $("intro").classList.remove("hidden");
+    startFallback("No se pudo abrir la cámara AR. Puedes usar el modo de prueba.");
   }
-
-  renderer.setAnimationLoop(render);
 }
 
+function startFallback(reason = "") {
+  fallbackMode = true;
+
+  $("intro").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  $("fallback-btn").classList.add("hidden");
+
+  if (!renderer) {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 20);
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setClearColor(0x071019, 1);
+    $("scene").appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.7));
+    const light = new THREE.DirectionalLight(0xffffff, 1.4);
+    light.position.set(1, 2, 1);
+    scene.add(light);
+
+    buildGame();
+    createBoard();
+    updateHud();
+
+    renderer.domElement.addEventListener("pointerup", onScreenTap);
+    renderer.setAnimationLoop(() => renderer.render(scene, camera));
+  }
+
+  boardGroup.visible = true;
+  boardGroup.position.set(0, -0.42, -1.15);
+  boardGroup.rotation.x = -Math.PI / 2.75;
+  boardPlaced = true;
+
+  $("placement-help").classList.remove("hidden");
+  $("placement-help").innerHTML =
+    "<strong>Modo de prueba</strong><span>" +
+    (reason || "El tablero está listo para jugar.") +
+    "</span>";
+
+  setTimeout(() => $("placement-help").classList.add("hidden"), 3200);
+}
 function render(timestamp,frame) {
   if (frame && !boardPlaced) {
     const session = renderer.xr.getSession();
@@ -396,11 +462,7 @@ $("reveal-mode").addEventListener("click",()=>setMode("reveal"));
 $("flag-mode").addEventListener("click",()=>setMode("flag"));
 $("reset-btn").addEventListener("click",resetGame);
 $("play-again").addEventListener("click",resetGame);
-$("fallback-btn").addEventListener("click",()=>{
-  fallbackMode=true;
-  $("fallback-btn").classList.add("hidden");
-  resetGame();
-});
+$("fallback-btn").addEventListener("click",()=>startFallback());
 
 addEventListener("resize",()=>{
   if (!renderer||!camera) return;
